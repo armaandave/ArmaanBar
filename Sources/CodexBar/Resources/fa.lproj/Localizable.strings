@@ -481,6 +481,8 @@
 "unsafe_managed_home" = "CodexBar از تغییر مسیر خانه مدیریت شده غیرمنتظره خودداری کرد: %@";
 "menu_bar_metric_title" = "معیار نوار منو";
 "menu_bar_metric_subtitle" = "انتخاب کنید کدام پنجره درصد نوار منو را تنظیم کند.";
+"exclude_weekends_title" = "حذف آخر هفته‌ها";
+"exclude_weekends_subtitle" = "هنگام محاسبه سرعت هفتگی در نوار منو، فقط زمان دوشنبه تا جمعه را حساب کنید.";
 "menu_bar_metric_subtitle_deepseek" = "تعادل DeepSeek را در نوار منو نشان می دهد.";
 "menu_bar_metric_subtitle_moonshot" = "تعادل Moonshot / Kimi API را در نوار منو نشان می دهد.";
 "menu_bar_metric_subtitle_mistral" = "هزینه های Mistral API ماه جاری را در نوار منو نشان می دهد.";

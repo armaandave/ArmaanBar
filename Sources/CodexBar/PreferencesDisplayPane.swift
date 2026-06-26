@@ -66,6 +66,12 @@ struct DisplayPane: View {
                     .disabled(!self.settings.menuBarShowsBrandIconWithPercent)
                     .opacity(self.settings.menuBarShowsBrandIconWithPercent ? 1 : 0.5)
                     self.codexMenuBarMetricPicker
+                    PreferenceToggleRow(
+                        title: L("exclude_weekends_title"),
+                        subtitle: L("exclude_weekends_subtitle"),
+                        binding: self.excludeWeekendsBinding)
+                        .disabled(!self.settings.menuBarShowsBrandIconWithPercent)
+                        .opacity(self.settings.menuBarShowsBrandIconWithPercent ? 1 : 0.5)
                 }
 
                 Divider()
@@ -255,6 +261,12 @@ struct DisplayPane: View {
             set: { preference in
                 self.settings.setMenuBarMetricPreference(preference == .secondary ? .secondary : .primary, for: .codex)
             })
+    }
+
+    private var excludeWeekendsBinding: Binding<Bool> {
+        Binding(
+            get: { self.settings.weeklyProgressWorkDays == 5 },
+            set: { self.settings.weeklyProgressWorkDays = $0 ? 5 : nil })
     }
 
     private var activeProvidersInOrder: [UsageProvider] {

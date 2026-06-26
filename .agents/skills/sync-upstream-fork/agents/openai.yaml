@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sync Upstream Fork"
+  short_description: "Safely merge upstream fork changes"
+  default_prompt: "Use $sync-upstream-fork to fetch upstream changes, merge them into my fork, explain conflicts, and push the result."

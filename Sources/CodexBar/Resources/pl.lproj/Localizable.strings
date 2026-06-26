@@ -483,6 +483,8 @@
 "unsafe_managed_home" = "CodexBar odmówił zmiany nieoczekiwanej ścieżki zarządzanego katalogu domowego: %@";
 "menu_bar_metric_title" = "Metryka paska menu";
 "menu_bar_metric_subtitle" = "Wybierz metrykę pokazywaną obok ikony na pasku menu.";
+"exclude_weekends_title" = "Wyklucz weekendy";
+"exclude_weekends_subtitle" = "Przy obliczaniu tygodniowego tempa na pasku menu licz tylko czas od poniedziałku do piątku.";
 "menu_bar_metric_subtitle_deepseek" = "Pokazuje saldo DeepSeek na pasku menu.";
 "menu_bar_metric_subtitle_moonshot" = "Pokazuje saldo API Moonshot / Kimi na pasku menu.";
 "menu_bar_metric_subtitle_mistral" = "Pokazuje wydatki Mistral API z bieżącego miesiąca na pasku menu.";

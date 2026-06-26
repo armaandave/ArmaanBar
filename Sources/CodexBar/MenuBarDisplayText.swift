@@ -16,6 +16,13 @@ enum MenuBarDisplayText {
         return "\(sign)\(deltaValue)%"
     }
 
+    static func periodText(pace: UsagePace?, showUsed: Bool) -> String? {
+        guard let pace else { return nil }
+        let expectedUsed = pace.expectedUsedPercent.clamped(to: 0...100)
+        let percent = Int((showUsed ? expectedUsed : 100 - expectedUsed).rounded())
+        return "\(percent)%"
+    }
+
     static func codexCombinedPercentText(
         sessionWindow: RateWindow?,
         weeklyWindow: RateWindow?,
@@ -58,9 +65,9 @@ enum MenuBarDisplayText {
                 ?? self.percentText(window: percentWindow, showUsed: showUsed)
         case .both:
             guard let percent = percentText(window: percentWindow, showUsed: showUsed) else { return nil }
-            // Fall back to percent-only when pace is unavailable (e.g. Copilot)
-            guard let paceText = Self.paceText(pace: pace) else { return percent }
-            return "\(percent) · \(paceText)"
+            // Fall back to percent-only when period progress is unavailable (e.g. Copilot).
+            guard let periodText = Self.periodText(pace: pace, showUsed: showUsed) else { return percent }
+            return "\(percent) @ \(periodText)"
         case .resetTime:
             guard let percentWindow else { return nil }
             if let resetsAt = percentWindow.resetsAt {

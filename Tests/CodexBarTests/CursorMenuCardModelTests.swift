@@ -92,7 +92,7 @@ struct CursorMenuCardModelTests {
         #expect(model.metrics.map(\.title) == ["Total", "Auto", "API"])
         for metric in model.metrics {
             #expect(metric.percentLabel == "10% left")
-            #expect(metric.detailLeftText == "10% in deficit")
+            #expect(metric.detailLeftText == "20% of period left")
             #expect(metric.detailRightText == "Runs out in 2d 16h")
             #expect(metric.pacePercent == 20)
             #expect(metric.paceOnTop == false)

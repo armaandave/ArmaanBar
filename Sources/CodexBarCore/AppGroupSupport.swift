@@ -40,7 +40,7 @@ public enum AppGroupSupport {
     }
 
     static func currentGroupID(teamID: String, bundleID: String?) -> String {
-        let base = "\(teamID).com.steipete.codexbar"
+        let base = "\(teamID).\(self.currentGroupBase(for: bundleID))"
         return self.isDebugBundleID(bundleID) ? "\(base).debug" : base
     }
 
@@ -214,6 +214,12 @@ public enum AppGroupSupport {
     private static func isDebugBundleID(_ bundleID: String?) -> Bool {
         guard let bundleID, !bundleID.isEmpty else { return false }
         return bundleID.contains(".debug")
+    }
+
+    private static func currentGroupBase(for bundleID: String?) -> String {
+        bundleID?.hasPrefix("com.armaandave.ArmaanBar") == true
+            ? "com.armaandave.ArmaanBar"
+            : "com.steipete.codexbar"
     }
 
     private static func codeSignatureTeamID(bundleURL: URL?) -> String? {

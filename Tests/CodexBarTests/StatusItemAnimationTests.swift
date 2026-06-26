@@ -929,10 +929,16 @@ struct StatusItemAnimationTests {
             percentWindow: percentWindow,
             pace: paceValue,
             showUsed: true)
+        let bothLeft = MenuBarDisplayText.displayText(
+            mode: .both,
+            percentWindow: percentWindow,
+            pace: paceValue,
+            showUsed: false)
 
         #expect(percent == "40%")
         #expect(pace == "+16%")
-        #expect(both == "40% · +16%")
+        #expect(both == "40% @ 14%")
+        #expect(bothLeft == "60% @ 86%")
     }
 
     @Test
@@ -1060,7 +1066,7 @@ struct StatusItemAnimationTests {
 
         let displayText = controller.menuBarDisplayText(for: .claude, snapshot: snapshot)
 
-        #expect(displayText == "20% · +60%")
+        #expect(displayText == "20% @ 80%")
     }
 
     @Test

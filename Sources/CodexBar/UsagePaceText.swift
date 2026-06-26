@@ -14,32 +14,26 @@ enum UsagePaceText {
         case weekly
     }
 
-    static func weeklySummary(pace: UsagePace, now: Date = .init()) -> String {
-        let detail = self.weeklyDetail(pace: pace, now: now)
+    static func weeklySummary(pace: UsagePace, now: Date = .init(), showUsed: Bool = true) -> String {
+        let detail = self.weeklyDetail(pace: pace, now: now, showUsed: showUsed)
         if let rightLabel = detail.rightLabel {
             return L("Pace: %@ · %@", detail.leftLabel, rightLabel)
         }
         return L("Pace: %@", detail.leftLabel)
     }
 
-    static func weeklyDetail(pace: UsagePace, now: Date = .init()) -> WeeklyDetail {
+    static func weeklyDetail(pace: UsagePace, now: Date = .init(), showUsed: Bool = true) -> WeeklyDetail {
         WeeklyDetail(
-            leftLabel: self.detailLeftLabel(for: pace),
+            leftLabel: self.detailLeftLabel(for: pace, showUsed: showUsed),
             rightLabel: self.detailRightLabel(for: pace, context: .weekly, now: now),
             expectedUsedPercent: pace.expectedUsedPercent,
             stage: pace.stage)
     }
 
-    private static func detailLeftLabel(for pace: UsagePace) -> String {
-        let deltaValue = Int(abs(pace.deltaPercent).rounded())
-        switch pace.stage {
-        case .onTrack:
-            return L("On pace")
-        case .slightlyAhead, .ahead, .farAhead:
-            return L("%d%% in deficit", deltaValue)
-        case .slightlyBehind, .behind, .farBehind:
-            return L("%d%% in reserve", deltaValue)
-        }
+    private static func detailLeftLabel(for pace: UsagePace, showUsed: Bool) -> String {
+        let expectedUsed = pace.expectedUsedPercent.clamped(to: 0...100)
+        let percent = Int((showUsed ? expectedUsed : 100 - expectedUsed).rounded())
+        return showUsed ? L("%d%% of period over", percent) : L("%d%% of period left", percent)
     }
 
     private static func detailRightLabel(for pace: UsagePace, context: DetailContext, now: Date) -> String? {
@@ -92,17 +86,29 @@ enum UsagePaceText {
         return pace
     }
 
-    static func sessionDetail(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> WeeklyDetail? {
+    static func sessionDetail(
+        provider: UsageProvider,
+        window: RateWindow,
+        now: Date = .init(),
+        showUsed: Bool = true) -> WeeklyDetail?
+    {
         guard let pace = sessionPace(provider: provider, window: window, now: now) else { return nil }
         return WeeklyDetail(
-            leftLabel: Self.detailLeftLabel(for: pace),
+            leftLabel: Self.detailLeftLabel(for: pace, showUsed: showUsed),
             rightLabel: Self.detailRightLabel(for: pace, context: .session, now: now),
             expectedUsedPercent: pace.expectedUsedPercent,
             stage: pace.stage)
     }
 
-    static func sessionSummary(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> String? {
-        guard let detail = sessionDetail(provider: provider, window: window, now: now) else { return nil }
+    static func sessionSummary(
+        provider: UsageProvider,
+        window: RateWindow,
+        now: Date = .init(),
+        showUsed: Bool = true) -> String?
+    {
+        guard let detail = sessionDetail(provider: provider, window: window, now: now, showUsed: showUsed) else {
+            return nil
+        }
         if let rightLabel = detail.rightLabel {
             return L("Pace: %@ · %@", detail.leftLabel, rightLabel)
         }

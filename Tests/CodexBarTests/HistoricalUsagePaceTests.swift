@@ -786,7 +786,7 @@ struct HistoricalUsagePaceTests {
         #expect(pace.deltaPercent > 0)
 
         let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
-        #expect(detail.leftLabel == "5% in deficit")
+        #expect(detail.leftLabel == "75% of period over")
         #expect(detail.rightLabel?.contains("Lasts until reset") == false)
     }
 

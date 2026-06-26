@@ -65,6 +65,7 @@ struct DisplayPane: View {
                     }
                     .disabled(!self.settings.menuBarShowsBrandIconWithPercent)
                     .opacity(self.settings.menuBarShowsBrandIconWithPercent ? 1 : 0.5)
+                    self.codexMenuBarMetricPicker
                 }
 
                 Divider()
@@ -222,6 +223,38 @@ struct DisplayPane: View {
         }
         .padding(12)
         .frame(width: 280)
+    }
+
+    private var codexMenuBarMetricPicker: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L("menu_bar_metric_title"))
+                    .font(.body)
+                Text(L("menu_bar_metric_subtitle"))
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer()
+            Picker(L("menu_bar_metric_title"), selection: self.codexMenuBarMetricBinding) {
+                Text("5-hour").tag(MenuBarMetricPreference.primary)
+                Text(L("Weekly")).tag(MenuBarMetricPreference.secondary)
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(maxWidth: 120)
+        }
+        .disabled(!self.settings.menuBarShowsBrandIconWithPercent)
+        .opacity(self.settings.menuBarShowsBrandIconWithPercent ? 1 : 0.5)
+    }
+
+    private var codexMenuBarMetricBinding: Binding<MenuBarMetricPreference> {
+        Binding(
+            get: {
+                self.settings.menuBarMetricPreference(for: .codex) == .secondary ? .secondary : .primary
+            },
+            set: { preference in
+                self.settings.setMenuBarMetricPreference(preference == .secondary ? .secondary : .primary, for: .codex)
+            })
     }
 
     private var activeProvidersInOrder: [UsageProvider] {

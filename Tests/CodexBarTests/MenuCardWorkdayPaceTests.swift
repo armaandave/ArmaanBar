@@ -73,7 +73,7 @@ struct MenuCardWorkdayPaceTests {
             now: now))
 
         let weekly = try #require(model.metrics.first { $0.id == "secondary" })
-        #expect(weekly.detailLeftText == "100% in deficit")
+        #expect(weekly.detailLeftText == "100% of period left")
         #expect(weekly.detailRightText == "Runs out now")
     }
 }

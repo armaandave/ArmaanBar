@@ -352,7 +352,12 @@ extension UsageMenuCardView.Model {
         now: Date,
         showUsed: Bool) -> PaceDetail?
     {
-        guard let detail = UsagePaceText.sessionDetail(provider: provider, window: window, now: now) else { return nil }
+        guard let detail = UsagePaceText.sessionDetail(
+            provider: provider,
+            window: window,
+            now: now,
+            showUsed: showUsed)
+        else { return nil }
         let expectedUsed = detail.expectedUsedPercent
         let actualUsed = window.usedPercent
         let expectedPercent = showUsed ? expectedUsed : (100 - expectedUsed)
@@ -374,7 +379,7 @@ extension UsageMenuCardView.Model {
         showUsed: Bool) -> PaceDetail?
     {
         guard let pace else { return nil }
-        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
+        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now, showUsed: showUsed)
         let expectedUsed = detail.expectedUsedPercent
         let actualUsed = window.usedPercent
         let expectedPercent = showUsed ? expectedUsed : (100 - expectedUsed)

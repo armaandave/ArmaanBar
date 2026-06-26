@@ -12,6 +12,12 @@ struct AppGroupSupportTests {
             AppGroupSupport.currentGroupID(teamID: "ABCDE12345", bundleID: "com.steipete.codexbar.debug")
                 == "ABCDE12345.com.steipete.codexbar.debug")
         #expect(
+            AppGroupSupport.currentGroupID(teamID: "ABCDE12345", bundleID: "com.armaandave.ArmaanBar")
+                == "ABCDE12345.com.armaandave.ArmaanBar")
+        #expect(
+            AppGroupSupport.currentGroupID(teamID: "ABCDE12345", bundleID: "com.armaandave.ArmaanBar.debug")
+                == "ABCDE12345.com.armaandave.ArmaanBar.debug")
+        #expect(
             AppGroupSupport.legacyGroupID(for: "com.steipete.codexbar")
                 == "group.com.steipete.codexbar")
         #expect(

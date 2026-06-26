@@ -112,14 +112,18 @@ struct InlineCostHistoryDashboardLabelTests {
         let oneDay = makeModel(historyDays: 1)
         #expect(oneDay.inlineUsageDashboard?.kpis[1].title == "Today")
         #expect(oneDay.inlineUsageDashboard?.kpis[2].title == "Today tokens")
+        #expect(oneDay.inlineUsageDashboard?.kpis[3].title == "Today tokens")
 
         let sevenDays = makeModel(historyDays: 7)
         #expect(sevenDays.inlineUsageDashboard?.kpis[1].title == "Last 7 days Cost")
-        #expect(sevenDays.inlineUsageDashboard?.kpis[2].title == "Last 7 days tokens")
+        #expect(sevenDays.inlineUsageDashboard?.kpis[2].title == "Today tokens")
+        #expect(sevenDays.inlineUsageDashboard?.kpis[2].value == "275")
+        #expect(sevenDays.inlineUsageDashboard?.kpis[3].title == "Last 7 days tokens")
 
         let thirtyDays = makeModel(historyDays: 30)
         #expect(thirtyDays.inlineUsageDashboard?.kpis[1].title == "30d cost")
-        #expect(thirtyDays.inlineUsageDashboard?.kpis[2].title == "30d tokens")
+        #expect(thirtyDays.inlineUsageDashboard?.kpis[2].title == "Today tokens")
+        #expect(thirtyDays.inlineUsageDashboard?.kpis[3].title == "30d tokens")
     }
 
     @Test
@@ -168,6 +172,7 @@ struct InlineCostHistoryDashboardLabelTests {
             now: now))
 
         #expect(model.inlineUsageDashboard?.kpis[1].title == "This month")
-        #expect(model.inlineUsageDashboard?.kpis[2].title == "This month tokens")
+        #expect(model.inlineUsageDashboard?.kpis[2].title == "Today tokens")
+        #expect(model.inlineUsageDashboard?.kpis[3].title == "This month tokens")
     }
 }

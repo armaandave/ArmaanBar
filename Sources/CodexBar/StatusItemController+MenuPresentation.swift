@@ -5,10 +5,12 @@ import SwiftUI
 
 extension StatusItemController {
     func switcherWeeklyRemaining(for provider: UsageProvider) -> Double? {
-        Self.switcherWeeklyMetricPercent(
+        let snapshot = self.store.snapshot(for: provider)
+        return Self.switcherWeeklyMetricPercent(
             for: provider,
-            snapshot: self.store.snapshot(for: provider),
-            showUsed: self.settings.usageBarsShowUsed)
+            snapshot: snapshot,
+            showUsed: self.settings.usageBarsShowUsed,
+            preference: self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot))
     }
 
     func applySubtitle(_ subtitle: String, to item: NSMenuItem, title: String) {
@@ -109,6 +111,21 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
         self.invalidateIntrinsicContentSize()
         self.layoutSubtreeIfNeeded()
         self.superview?.layoutSubtreeIfNeeded()
+    }
+
+    /// Measures the true SwiftUI content height at `width`. The cached `measuredHeight` is routed
+    /// through `intrinsicContentSize`, so `fittingSize` would otherwise echo the stale cached value;
+    /// clearing it for the measurement lets the live content size drive the result. Used to resize
+    /// the row exactly when expandable content (e.g. status groups) toggles.
+    func measuredFittingHeight(width: CGFloat) -> CGFloat {
+        let saved = self.measuredHeight
+        self.measuredHeight = nil
+        self.frame = NSRect(origin: self.frame.origin, size: NSSize(width: width, height: 1))
+        self.invalidateIntrinsicContentSize()
+        self.layoutSubtreeIfNeeded()
+        let height = self.fittingSize.height
+        self.measuredHeight = saved
+        return height
     }
 }
 
@@ -433,7 +450,7 @@ final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
     }
 
     private static func iconConfiguration(for metrics: PersistentRefreshRowMetrics) -> NSImage.SymbolConfiguration {
-        NSImage.SymbolConfiguration(pointSize: metrics.iconSymbolPointSize, weight: .regular)
+        NSImage.SymbolConfiguration(pointSize: metrics.iconSymbolPointSize, weight: metrics.iconSymbolWeight)
     }
 
     private static func shortcutFont(for metrics: PersistentRefreshRowMetrics) -> NSFont {

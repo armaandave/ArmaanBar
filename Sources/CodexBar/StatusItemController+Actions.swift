@@ -1,6 +1,15 @@
 import AppKit
 import CodexBarCore
 
+extension StatusItemController {
+    /// Identifies which manual refresh a task belongs to, so per-provider refreshes stay independent
+    /// of each other and of the all-providers refresh.
+    enum ManualRefreshScope: Hashable {
+        case global
+        case provider(UsageProvider)
+    }
+}
+
 enum LoginNotificationLogic {
     static func notificationCopy(providerName: String) -> (title: String, body: String) {
         (
@@ -114,10 +123,17 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     private func startManualRefresh(for provider: UsageProvider?) {
+        let scope: ManualRefreshScope = provider.map(ManualRefreshScope.provider) ?? .global
         let scopedRefreshInFlight = provider.map { self.store.refreshingProviders.contains($0) }
             ?? !self.store.refreshingProviders.isEmpty
+        // Two different providers may refresh concurrently, but an all-providers (.global) refresh must
+        // not overlap a per-provider one (or vice versa) — that would duplicate the shared fetch work.
+        let conflictsWithOtherScope = scope == .global
+            ? self.manualRefreshTasks.contains { $0.key != .global }
+            : self.manualRefreshTasks[.global] != nil
         guard !self.hasPreparedForAppShutdown,
-              self.manualRefreshTask == nil,
+              self.manualRefreshTasks[scope] == nil,
+              !conflictsWithOtherScope,
               !self.store.isRefreshing,
               !scopedRefreshInFlight
         else { return }
@@ -126,9 +142,8 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
             defer {
-                self.manualRefreshTask = nil
-                self.manualRefreshProvider = nil
-                self.menuCardRefreshMonitor.endManualRefresh()
+                self.manualRefreshTasks[scope] = nil
+                self.menuCardRefreshMonitor.endManualRefresh(for: provider)
                 self.updatePersistentRefreshItemsEnabled()
                 self.prepareAttachedClosedMenusIfNeeded()
             }
@@ -152,8 +167,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                     interaction: .userInitiated)
             }
         }
-        self.manualRefreshProvider = provider
-        self.manualRefreshTask = task
+        self.manualRefreshTasks[scope] = task
         self.menuCardRefreshMonitor.beginManualRefresh(frozenModels: frozenModels, provider: provider)
         self.updatePersistentRefreshItemsEnabled()
     }
@@ -263,6 +277,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 usageScope: self.settings.zaiEffectiveUsageScope())
         }
 
+        if provider == .qoder {
+            return QoderProviderDescriptor.dashboardURL(
+                settings: self.settings.qoderSettingsSnapshot(tokenOverride: nil),
+                sourceLabel: self.store.sourceLabel(for: .qoder))
+        }
+
         let meta = self.store.metadata(for: provider)
         let urlString: String? = if provider == .claude, self.store.isClaudeSubscription() {
             meta.subscriptionDashboardURL ?? meta.dashboardURL
@@ -328,7 +348,17 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         let preferred = self.lastMenuProvider
             ?? (self.store.isEnabled(.codex) ? .codex : self.store.enabledProviders().first)
 
-        let provider = preferred ?? .codex
+        self.openStatusPage(for: preferred ?? .codex)
+    }
+
+    @objc func openStatusPageFromMenuItem(_ sender: NSMenuItem) {
+        let provider = (sender.identifier?.rawValue).flatMap(UsageProvider.init(rawValue:))
+            ?? self.lastMenuProvider
+            ?? .codex
+        self.openStatusPage(for: provider)
+    }
+
+    private func openStatusPage(for provider: UsageProvider) {
         let meta = self.store.metadata(for: provider)
         let urlString = meta.statusPageURL ?? meta.statusLinkURL
         guard let urlString, let url = URL(string: urlString) else { return }
@@ -424,11 +454,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     @objc func showSettingsGeneral() {
-        self.openSettings(tab: .general)
+        // Restore the last selected pane; only About navigates explicitly.
+        self.openSettings(pane: nil)
     }
 
     @objc func showSettingsAbout() {
-        self.openSettings(tab: .about)
+        self.openSettings(pane: .about)
     }
 
     func openMenuFromShortcut() {
@@ -479,14 +510,13 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         return CGPoint(x: screenFrame.midX, y: screenFrame.midY)
     }
 
-    private func openSettings(tab: PreferencesTab) {
+    private func openSettings(pane: SettingsPane?) {
         DispatchQueue.main.async {
-            self.preferencesSelection.tab = tab
+            if let pane {
+                self.preferencesSelection.pane = pane
+            }
             NSApp.activate(ignoringOtherApps: true)
-            NotificationCenter.default.post(
-                name: .codexbarOpenSettings,
-                object: nil,
-                userInfo: ["tab": tab.rawValue])
+            NotificationCenter.default.post(name: .codexbarOpenSettings, object: nil)
         }
     }
 
@@ -616,13 +646,13 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 title: L("Claude CLI not found"),
                 message: L("Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again."))
         case let .launchFailed(message):
-            self.presentLoginAlert(title: L("Could not start claude /login"), message: message)
+            self.presentLoginAlert(title: L("Could not start Claude Code login"), message: message)
         case .timedOut:
             self.presentLoginAlert(
                 title: L("Claude login timed out"),
                 message: self.trimmedLoginOutput(result.output))
         case let .failed(status):
-            let statusLine = String(format: L("claude /login exited with status %d."), status)
+            let statusLine = String(format: L("claude auth login exited with status %d."), status)
             let message = self.trimmedLoginOutput(result.output.isEmpty ? statusLine : result.output)
             self.presentLoginAlert(title: L("Claude login failed"), message: message)
         }

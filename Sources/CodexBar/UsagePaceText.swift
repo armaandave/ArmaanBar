@@ -14,15 +14,25 @@ enum UsagePaceText {
         case weekly
     }
 
-    static func weeklySummary(pace: UsagePace, now: Date = .init(), showUsed: Bool = true) -> String {
-        let detail = self.weeklyDetail(pace: pace, now: now, showUsed: showUsed)
+    static func weeklySummary(
+        provider: UsageProvider,
+        pace: UsagePace,
+        now: Date = .init(),
+        showUsed: Bool = true) -> String
+    {
+        let detail = self.weeklyDetail(provider: provider, pace: pace, now: now, showUsed: showUsed)
         if let rightLabel = detail.rightLabel {
             return L("Pace: %@ · %@", detail.leftLabel, rightLabel)
         }
         return L("Pace: %@", detail.leftLabel)
     }
 
-    static func weeklyDetail(pace: UsagePace, now: Date = .init(), showUsed: Bool = true) -> WeeklyDetail {
+    static func weeklyDetail(
+        provider _: UsageProvider,
+        pace: UsagePace,
+        now: Date = .init(),
+        showUsed: Bool = true) -> WeeklyDetail
+    {
         WeeklyDetail(
             leftLabel: self.detailLeftLabel(for: pace, showUsed: showUsed),
             rightLabel: self.detailRightLabel(for: pace, context: .weekly, now: now),

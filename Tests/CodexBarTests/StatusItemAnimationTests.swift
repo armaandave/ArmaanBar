@@ -1117,6 +1117,57 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `codex both menu bar keeps period percent immediately after weekly reset`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-codex-both-after-reset"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.menuBarDisplayMode = .both
+        settings.usageBarsShowUsed = true
+        settings.setMenuBarMetricPreference(.secondary, for: .codex)
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 12,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 2,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval((10080 - 120) * 60),
+                resetDescription: nil),
+            updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+
+        let displayText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
+
+        #expect(displayText == "2% @ 1%")
+    }
+
+    @Test
     func `menu bar display text uses credits when codex weekly is exhausted`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusItemAnimationTests-credits-fallback"),

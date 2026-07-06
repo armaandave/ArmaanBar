@@ -751,7 +751,15 @@ extension StatusItemController {
                 percentWindow
             }
             pace = paceWindow.flatMap { window in
-                self.store.weeklyPace(provider: provider, window: window, now: now)
+                guard mode == .both else {
+                    return self.store.weeklyPace(provider: provider, window: window, now: now)
+                }
+                return self.store.weeklyPace(
+                    provider: provider,
+                    window: window,
+                    now: now,
+                    requireRemainingQuota: false,
+                    enforceMinimumExpectedPercent: false)
             }
         case .resetTime:
             return MenuBarDisplayText.displayText(

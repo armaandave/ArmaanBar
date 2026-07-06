@@ -11,6 +11,7 @@ DerivedData
 
 # Bundles / artifacts
 # Main app bundle (any variation)
+ArmaanBar.app/
 CodexBar.app/
 CodexBar *.app/
 CodexBar_*.app/

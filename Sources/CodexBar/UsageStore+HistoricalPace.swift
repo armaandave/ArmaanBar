@@ -6,8 +6,14 @@ extension UsageStore {
     private static let minimumPaceExpectedPercent: Double = 3
     private static let backfillMaxTimestampMismatch: TimeInterval = 5 * 60
 
-    func weeklyPace(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> UsagePace? {
-        guard window.remainingPercent > 0 else { return nil }
+    func weeklyPace(
+        provider: UsageProvider,
+        window: RateWindow,
+        now: Date = .init(),
+        requireRemainingQuota: Bool = true,
+        enforceMinimumExpectedPercent: Bool = true) -> UsagePace?
+    {
+        guard !requireRemainingQuota || window.remainingPercent > 0 else { return nil }
         let resolved: UsagePace?
         let workDays = self.settings.weeklyProgressWorkDays
         // Codex can refine pace with historical samples because its dashboard exposes enough weekly history to build
@@ -34,7 +40,9 @@ extension UsageStore {
         }
 
         guard let resolved else { return nil }
-        guard resolved.expectedUsedPercent >= Self.minimumPaceExpectedPercent else { return nil }
+        if enforceMinimumExpectedPercent {
+            guard resolved.expectedUsedPercent >= Self.minimumPaceExpectedPercent else { return nil }
+        }
         return resolved
     }
 

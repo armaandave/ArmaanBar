@@ -395,35 +395,18 @@ extension UsageMenuCardView.Model {
                         .map { Self.costString($0, currencyCode: snapshot.currencyCode) } ?? "—",
                     emphasis: false),
                 .init(
+                    title: L("Today tokens"),
+                    value: snapshot.sessionTokens.map(UsageFormatter.tokenCountString) ?? "—",
+                    emphasis: false),
+                .init(
                     title: tokenHistoryTitle,
                     value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
                     emphasis: false),
-            ] + Self.costHistoryTrailingKPIs(snapshot: snapshot, latest: latest),
+            ],
             points: points,
             detailLines: details)
         model.currencyCode = snapshot.currencyCode
         return model
-    }
-
-    private static func costHistoryTrailingKPIs(
-        snapshot: CostUsageTokenSnapshot,
-        latest: CostUsageDailyReport.Entry?)
-        -> [InlineUsageDashboardModel.KPI]
-    {
-        if let requests = snapshot.last30DaysRequests {
-            return [
-                .init(
-                    title: L("Requests"),
-                    value: UsageFormatter.tokenCountString(requests),
-                    emphasis: false),
-            ]
-        }
-        return [
-            .init(
-                title: L("Latest tokens"),
-                value: latest?.totalTokens.map(UsageFormatter.tokenCountString) ?? "—",
-                emphasis: false),
-        ]
     }
 
     fileprivate static func claudeAdminAPIInlineDashboard(_ usage: ClaudeAdminAPIUsageSnapshot)

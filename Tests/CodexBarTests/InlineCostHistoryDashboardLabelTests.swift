@@ -123,7 +123,10 @@ struct InlineCostHistoryDashboardLabelTests {
         let thirtyDays = makeModel(historyDays: 30)
         #expect(thirtyDays.inlineUsageDashboard?.kpis[1].title == "30d cost")
         #expect(thirtyDays.inlineUsageDashboard?.kpis[2].title == "Today tokens")
+        #expect(thirtyDays.inlineUsageDashboard?.kpis[2].value == "275")
         #expect(thirtyDays.inlineUsageDashboard?.kpis[3].title == "30d tokens")
+        #expect(thirtyDays.inlineUsageDashboard?.kpis[3].value == "425")
+        #expect(thirtyDays.inlineUsageDashboard?.kpis.contains { $0.title == "Latest tokens" } == false)
     }
 
     @Test

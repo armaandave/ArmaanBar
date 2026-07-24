@@ -76,6 +76,12 @@ struct KeychainNoUIQueryTests {
     }
 
     @Test
+    func `global disable blocks Security framework access`() {
+        #expect(KeychainSecurity.shouldBlockAccess(keychainDisabled: true, testSafetyBlocked: false))
+        #expect(!KeychainSecurity.shouldBlockAccess(keychainDisabled: false, testSafetyBlocked: false))
+    }
+
+    @Test
     func `safety recognizes runner variants and explicit controls`() {
         #expect(KeychainTestSafety.shouldBlockRealKeychainAccess(
             processName: "swiftpm-testing-helper",

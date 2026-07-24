@@ -1,11 +1,12 @@
 ---
 name: sync-upstream-fork
-description: Safely update a fork from its upstream/original repository. Use when the user asks to get upstream changes, sync a fork, catch up a repo that is commits behind upstream, merge upstream into their branch, explain merge conflicts without overwriting local changes, resolve conflicts by choosing upstream/ours/manual per user direction, validate, commit, and push.
+description: Safely update a fork from its upstream/original repository while enforcing its fork contract. Use when the user asks to get upstream changes, sync a fork, catch up a repo that is commits behind upstream, merge upstream into their branch, explain merge conflicts without overwriting local changes, resolve conflicts by choosing upstream/ours/manual per user direction, validate, commit, and push.
 ---
 
 # Sync Upstream Fork
 
-Safely merge upstream changes into the current fork without silently overwriting local edits.
+Safely merge upstream changes into the current fork without silently overwriting local edits or
+intentional fork behavior.
 
 ## Workflow
 
@@ -26,14 +27,27 @@ If tracked files are modified, stop and ask whether to commit, stash, or leave t
 - If still unclear, ask for the upstream URL.
 - After adding a remote, use the name `upstream`.
 
-3. Fetch and summarize drift:
+3. Fetch and inspect the fork contract before any merge:
 
 ```bash
 git fetch origin --prune
 git fetch upstream --prune
 git log --oneline --decorate HEAD..upstream/main
 git log --oneline --decorate upstream/main..HEAD
+python3 .agents/skills/sync-upstream-fork/scripts/fork_contract_report.py --upstream upstream/main --check
 ```
+
+The fork contract at `.agents/fork-contract.md` is mandatory. Do not create, edit, or weaken it
+during a sync to make the report pass. It is maintained alongside normal fork-specific changes.
+
+Exit status `2` from the report is an intentional stop, not a failure. Before merging, show the
+user every protected item touched by upstream and every fork-only path missing from the contract.
+Ask whether each protected item should be preserved manually, replaced by upstream, or changed in
+a specified way. For unlisted fork-only paths, ask whether to add a contract item or explicitly
+allow upstream to replace them. Do not merge, commit, or push until the user decides.
+
+The report matches paths conservatively. A match requires a decision even if Git would merge the
+file cleanly and even if the upstream hunk appears unrelated.
 
 Use the upstream default branch if it is not `main`:
 
@@ -41,7 +55,8 @@ Use the upstream default branch if it is not `main`:
 git remote show upstream
 ```
 
-4. Merge upstream into the current branch:
+4. Merge upstream into the current branch only after the contract report requires no decision or
+the user has made every required decision:
 
 ```bash
 git merge --no-ff upstream/main
@@ -66,7 +81,12 @@ For each conflicted file, explain:
 
 Pause for user direction. If the user chooses per file or hunk, apply only that choice. Preserve intentional fork changes unless the user explicitly chooses upstream.
 
-6. After conflicts are resolved:
+For this repo, use `.agents/fork-contract.md` as the complete source of preservation rules. Do not
+take upstream wholesale for a protected file. Apply the user's per-item decision manually and keep
+all unrelated protected behavior intact.
+
+6. After conflicts are resolved, verify every preserved contract item still has its stated behavior
+and run its focused test when one is named. Then run:
 
 ```bash
 git status --short
@@ -75,7 +95,21 @@ git diff --check
 
 Run the repo's required check command from local instructions. For this repo, prefer `make check`; avoid live provider/keychain/browser-cookie probes unless the user explicitly requested them.
 
-7. Commit and push:
+If `Scripts/package_app.sh`, `Scripts/compile_and_run.sh`, `Package.swift`, signing metadata, or bundle metadata changed during the sync, verify the fork still packages as ArmaanBar before handoff:
+
+- executable/product: `ArmaanBar`
+- app bundle: `ArmaanBar.app`
+- bundle IDs: `com.armaandave.ArmaanBar` and `com.armaandave.ArmaanBar.debug`
+- app group/signing identifiers use the `com.armaandave.ArmaanBar` identity
+- packaging installs and patches rpaths for `${APP_EXECUTABLE}`, not a hard-coded upstream `CodexBar`
+
+For packaging validation, prefer `./Scripts/package_app.sh debug` for a non-launching check. Run the user's exact `./Scripts/compile_and_run.sh` command when they are explicitly validating the app bundle.
+
+7. Before committing, show the user the final contract summary: preserved items, items intentionally
+replaced by upstream, and any contract additions requested by the user. Do not add a contract item
+merely because a file is fork-only; its behavior must be intentional and user-approved.
+
+8. Commit and push:
 
 ```bash
 git add <resolved-files>

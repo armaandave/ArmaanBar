@@ -37,18 +37,25 @@ import Security
 /// Test processes fail closed before touching the user's Keychain, even when a test enables
 /// higher-level Keychain logic with `KeychainAccessGate.withTaskOverrideForTesting(false)`.
 public enum KeychainSecurity {
+    static func shouldBlockAccess(
+        keychainDisabled: Bool = KeychainAccessGate.isDisabled,
+        testSafetyBlocked: Bool = KeychainTestSafety.shouldBlockRealKeychainAccess()) -> Bool
+    {
+        keychainDisabled || testSafetyBlocked
+    }
+
     public static func copyMatching(
         _ query: CFDictionary,
         _ result: UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus
     {
-        guard !KeychainTestSafety.shouldBlockRealKeychainAccess() else {
+        guard !self.shouldBlockAccess() else {
             return errSecInteractionNotAllowed
         }
         return SecItemCopyMatching(query, result)
     }
 
     public static func update(_ query: CFDictionary, _ attributesToUpdate: CFDictionary) -> OSStatus {
-        guard !KeychainTestSafety.shouldBlockRealKeychainAccess() else {
+        guard !self.shouldBlockAccess() else {
             return errSecInteractionNotAllowed
         }
         return SecItemUpdate(query, attributesToUpdate)
@@ -58,14 +65,14 @@ public enum KeychainSecurity {
         _ attributes: CFDictionary,
         _ result: UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus
     {
-        guard !KeychainTestSafety.shouldBlockRealKeychainAccess() else {
+        guard !self.shouldBlockAccess() else {
             return errSecInteractionNotAllowed
         }
         return SecItemAdd(attributes, result)
     }
 
     public static func delete(_ query: CFDictionary) -> OSStatus {
-        guard !KeychainTestSafety.shouldBlockRealKeychainAccess() else {
+        guard !self.shouldBlockAccess() else {
             return errSecInteractionNotAllowed
         }
         return SecItemDelete(query)

@@ -1501,6 +1501,7 @@ public enum ClaudeOAuthCredentialsStore {
     }
 
     private static func hasClaudeKeychainItemWithoutPrompt() -> Bool {
+        guard ClaudeOAuthKeychainPromptPreference.storedMode() != .never else { return false }
         #if DEBUG
         if let store = self.taskClaudeKeychainOverrideStore {
             if let data = store.data, !data.isEmpty { return true }
@@ -1700,6 +1701,7 @@ public enum ClaudeOAuthCredentialsStore {
 
     static func readRawClaudeKeychainPayloadViaSecurityFrameworkWithoutPrompt() -> Data? {
         #if os(macOS)
+        guard ClaudeOAuthKeychainPromptPreference.storedMode() != .never else { return nil }
         guard self.keychainAccessAllowed else { return nil }
         #if DEBUG
         if let store = self.taskClaudeKeychainOverrideStore { return store.data }

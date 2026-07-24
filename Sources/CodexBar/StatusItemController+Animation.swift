@@ -698,11 +698,9 @@ extension StatusItemController {
     }
 
     private func setButtonTitle(_ title: String?, for button: NSStatusBarButton) {
-        let isDebugApp = Self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier)
         let value = Self.buttonTitle(
             title,
-            hasImage: button.image != nil || title == nil,
-            isDebugApp: isDebugApp)
+            hasImage: button.image != nil || title == nil)
         if button.title != value {
             button.title = value
         }
@@ -712,13 +710,10 @@ extension StatusItemController {
         }
     }
 
-    nonisolated static func buttonTitle(_ title: String?, hasImage: Bool, isDebugApp: Bool = false) -> String {
+    nonisolated static func buttonTitle(_ title: String?, hasImage: Bool, isDebugApp _: Bool = false) -> String {
         var parts: [String] = []
         if let title, !title.isEmpty {
             parts.append(title)
-        }
-        if isDebugApp {
-            parts.append("D")
         }
         let value = parts.joined(separator: " ")
         return hasImage && !value.isEmpty ? " \(value)" : value

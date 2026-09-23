@@ -34,9 +34,16 @@ extension StatusItemVisibilitySnapshot: CustomStringConvertible {
     }
 }
 
-@MainActor
-func isStatusItemBlocked(_ item: NSStatusItem) -> Bool {
-    MenuBarVisibilityWatcher.isBlockedSnapshot(snapshot: MenuBarVisibilityWatcher.visibilitySnapshot(item))
+struct StatusItemStartupVisibilityEvidence: Equatable, CustomStringConvertible {
+    let autosaveName: String
+    let expectsVisibility: Bool
+    let visibilityDefault: Bool?
+    let snapshot: StatusItemVisibilitySnapshot
+
+    var description: String {
+        "name=\(self.autosaveName),expected=\(self.expectsVisibility),"
+            + "default=\(self.visibilityDefault.map(String.init) ?? "unset"),\(self.snapshot)"
+    }
 }
 
 enum MenuBarVisibilityWatcher {
@@ -91,14 +98,6 @@ enum MenuBarVisibilityWatcher {
         return !snapshot.hasScreen || !snapshot.isOnCurrentScreen
     }
 
-    static func hasBlockedVisibleSnapshots(_ snapshots: [StatusItemVisibilitySnapshot]) -> Bool {
-        let visibleItems = snapshots.filter(\.isVisible)
-        guard !visibleItems.isEmpty else { return false }
-        return visibleItems.allSatisfy { snapshot in
-            self.isBlockedSnapshot(snapshot: snapshot)
-        }
-    }
-
     static func hasAnyBlockedVisibleSnapshot(_ snapshots: [StatusItemVisibilitySnapshot]) -> Bool {
         snapshots.contains { snapshot in
             snapshot.isVisible && self.isBlockedSnapshot(snapshot: snapshot)
@@ -113,20 +112,44 @@ enum MenuBarVisibilityWatcher {
 
     static func hasAnyStartupRecoveryCandidate(
         snapshots: [StatusItemVisibilitySnapshot],
+        evidence: [StatusItemStartupVisibilityEvidence] = [],
         windowSnapshots: [MenuBarStatusItemWindowSnapshot] = [],
-        detectTahoeBlockedProxy: Bool = false)
+        detectTahoeBlockedStatusItem: Bool = false)
         -> Bool
     {
         if self.hasAnyBlockedVisibleSnapshot(snapshots) {
             return true
         }
-        guard detectTahoeBlockedProxy,
+        if detectTahoeBlockedStatusItem,
+           self.hasAnyTahoeHiddenNoProxyCandidate(evidence: evidence, windowSnapshots: windowSnapshots)
+        {
+            return true
+        }
+        guard detectTahoeBlockedStatusItem,
               self.hasAnyDisplacedVisibleSnapshot(snapshots),
               windowSnapshots.contains(where: \.isTahoeBlockedProxy)
         else {
             return false
         }
         return true
+    }
+
+    static func hasAnyTahoeHiddenNoProxyCandidate(
+        evidence: [StatusItemStartupVisibilityEvidence],
+        windowSnapshots: [MenuBarStatusItemWindowSnapshot])
+        -> Bool
+    {
+        evidence.contains { item in
+            // Tahoe can destroy the Control Center scene while leaving its enabled default behind.
+            // Requiring both app intent and that default avoids treating ordinary hidden items as blocked.
+            item.expectsVisibility
+                && item.visibilityDefault == true
+                && !item.snapshot.isVisible
+                && !item.snapshot.hasWindow
+                && !windowSnapshots.contains {
+                    $0.name == item.autosaveName && $0.isOnscreen && $0.isWithinDisplayBounds
+                }
+        }
     }
 
     @MainActor
@@ -136,24 +159,21 @@ enum MenuBarVisibilityWatcher {
         }
     }
 
-    @MainActor
-    static func hasBlockedVisibleStatusItems(_ items: [NSStatusItem]) -> Bool {
-        self.hasBlockedVisibleSnapshots(self.visibilitySnapshots(items))
-    }
-
     static func shouldAttemptStartupRecovery(
         appLaunchedAt: Date,
         now: Date = Date(),
         snapshots: [StatusItemVisibilitySnapshot],
+        evidence: [StatusItemStartupVisibilityEvidence] = [],
         windowSnapshots: [MenuBarStatusItemWindowSnapshot] = [],
-        detectTahoeBlockedProxy: Bool = false)
+        detectTahoeBlockedStatusItem: Bool = false)
         -> Bool
     {
         guard now.timeIntervalSince(appLaunchedAt) <= self.startupFreshnessInterval else { return false }
         return self.hasAnyStartupRecoveryCandidate(
             snapshots: snapshots,
+            evidence: evidence,
             windowSnapshots: windowSnapshots,
-            detectTahoeBlockedProxy: detectTahoeBlockedProxy)
+            detectTahoeBlockedStatusItem: detectTahoeBlockedStatusItem)
     }
 
     static func shouldRefreshScreenChangePlacement(
@@ -215,14 +235,16 @@ extension StatusItemController {
     }
 
     private func checkStartupStatusItemVisibility(appLaunchedAt: Date, now: Date = Date()) {
-        let snapshots = MenuBarVisibilityWatcher.visibilitySnapshots(self.startupVisibilityStatusItems)
+        let evidence = self.startupStatusItemVisibilityEvidence()
+        let snapshots = evidence.map(\.snapshot)
         let windowSnapshots = self.statusItemWindowSnapshots()
         guard MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
             appLaunchedAt: appLaunchedAt,
             now: now,
             snapshots: snapshots,
+            evidence: evidence,
             windowSnapshots: windowSnapshots,
-            detectTahoeBlockedProxy: self.canDetectTahoeBlockedProxy)
+            detectTahoeBlockedStatusItem: self.canDetectTahoeBlockedStatusItem)
         else {
             return
         }
@@ -231,18 +253,21 @@ extension StatusItemController {
             "Status item failed to materialize or remained detached; recreating status items",
             metadata: [
                 "snapshots": snapshots.map(\.description).joined(separator: " | "),
+                "evidence": evidence.map(\.description).joined(separator: " | "),
                 "windows": self.statusItemWindowDiagnosticsDescription(windowSnapshots),
             ])
         self.recreateStatusItemsForVisibilityRecovery()
 
-        let recoveredSnapshots = MenuBarVisibilityWatcher.visibilitySnapshots(self.startupVisibilityStatusItems)
+        let recoveredEvidence = self.startupStatusItemVisibilityEvidence()
+        let recoveredSnapshots = recoveredEvidence.map(\.snapshot)
         let recoveredWindowSnapshots = self.statusItemWindowSnapshots()
         guard MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
             appLaunchedAt: appLaunchedAt,
             now: now,
             snapshots: recoveredSnapshots,
+            evidence: recoveredEvidence,
             windowSnapshots: recoveredWindowSnapshots,
-            detectTahoeBlockedProxy: self.canDetectTahoeBlockedProxy)
+            detectTahoeBlockedStatusItem: self.canDetectTahoeBlockedStatusItem)
         else {
             self.menuLogger.info(
                 "Status item materialized after recreation",
@@ -254,6 +279,7 @@ extension StatusItemController {
             "Status item still unavailable after recreation",
             metadata: [
                 "snapshots": recoveredSnapshots.map(\.description).joined(separator: " | "),
+                "evidence": recoveredEvidence.map(\.description).joined(separator: " | "),
                 "windows": self.statusItemWindowDiagnosticsDescription(recoveredWindowSnapshots),
             ])
         guard #available(macOS 26.0, *),
@@ -382,7 +408,20 @@ extension StatusItemController {
         [self.statusItem] + Array(self.statusItems.values)
     }
 
-    private var canDetectTahoeBlockedProxy: Bool {
+    private func startupStatusItemVisibilityEvidence() -> [StatusItemStartupVisibilityEvidence] {
+        self.startupVisibilityStatusItems.map { item in
+            let autosaveName = item.autosaveName ?? ""
+            return StatusItemStartupVisibilityEvidence(
+                autosaveName: autosaveName,
+                expectsVisibility: self.expectedVisibleStatusItemAutosaveNames.contains(autosaveName),
+                visibilityDefault: MenuBarStatusItemDefaultsRepair.visibilityDefault(
+                    defaults: self.settings.userDefaults,
+                    autosaveName: autosaveName),
+                snapshot: MenuBarVisibilityWatcher.visibilitySnapshot(item))
+        }
+    }
+
+    private var canDetectTahoeBlockedStatusItem: Bool {
         if #available(macOS 26.0, *) {
             return true
         }

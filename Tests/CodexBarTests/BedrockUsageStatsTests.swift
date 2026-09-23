@@ -4,6 +4,27 @@ import Testing
 
 @Suite(.serialized)
 struct BedrockUsageStatsTests {
+    @Test(arguments: ["9.223372036854776e18", "1e40"])
+    func `cloudwatch rejects unrepresentable totals without trapping`(literal: String) async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            let body = """
+            {"MetricDataResults":[{"Id":"inputTokens","StatusCode":"Complete","Values":[\(literal)]}]}
+            """
+            return (Data(body.utf8), response)
+        }
+        await #expect(throws: BedrockUsageError.cloudWatchParseFailed("invalid metric total")) {
+            try await BedrockCloudWatchUsageFetcher.fetch(
+                credentials: Self.testCredentials,
+                region: "us-east-1",
+                now: Date(timeIntervalSince1970: 1_750_000_000),
+                endpointOverride: "https://cloudwatch.test",
+                transport: transport)
+        }
+    }
+
     @Test
     func `to usage snapshot with budget shows primary window`() {
         let snapshot = BedrockUsageSnapshot(
@@ -683,7 +704,11 @@ private final class BedrockRequestCapture: @unchecked Sendable {
 }
 
 final class BedrockStubURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    private static let _handlerBox = LockIsolated<((URLRequest) throws -> (HTTPURLResponse, Data))?>(nil)
+    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+        get { Self._handlerBox.value }
+        set { Self._handlerBox.setValue(newValue) }
+    }
 
     override static func canInit(with request: URLRequest) -> Bool {
         request.url?.host == "bedrock.test"

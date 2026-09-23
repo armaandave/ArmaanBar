@@ -75,6 +75,52 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     }
 }
 
+enum PreferredCurrencyOption: String, CaseIterable, Identifiable {
+    case auto
+    case usd = "USD"
+    case gbp = "GBP"
+    case eur = "EUR"
+    case czk = "CZK"
+    case cny = "CNY"
+    case jpy = "JPY"
+    case krw = "KRW"
+    case cad = "CAD"
+    case aud = "AUD"
+    case hkd = "HKD"
+    case twd = "TWD"
+    case sgd = "SGD"
+    case inr = "INR"
+    case chf = "CHF"
+    case aed = "AED"
+    case `try` = "TRY"
+
+    var id: String {
+        self.rawValue
+    }
+
+    var label: String {
+        switch self {
+        case .auto: L("currency_auto")
+        case .usd: "USD ($)"
+        case .gbp: "GBP (£)"
+        case .eur: "EUR (€)"
+        case .czk: "CZK (Kč)"
+        case .cny: "CNY (¥)"
+        case .jpy: "JPY (¥)"
+        case .krw: "KRW (₩)"
+        case .cad: "CAD ($)"
+        case .aud: "AUD ($)"
+        case .hkd: "HKD ($)"
+        case .twd: "TWD (NT$)"
+        case .sgd: "SGD ($)"
+        case .inr: "INR (₹)"
+        case .chf: "CHF (Fr.)"
+        case .aed: "AED (د.إ)"
+        case .try: "TRY (₺)"
+        }
+    }
+}
+
 @MainActor
 struct GeneralPane: View {
     @Bindable var settings: SettingsStore
@@ -91,6 +137,23 @@ struct GeneralPane: View {
                     optionLabel: { rawValue in
                         Text(verbatim: AppLanguage(rawValue: rawValue)?.label ?? rawValue)
                     })
+
+                SettingsMenuPicker(
+                    selection: self.$settings.preferredCurrencyCode,
+                    options: PreferredCurrencyOption.allCases.map(\.rawValue),
+                    label: {
+                        SettingsRowLabel(L("currency_title"), subtitle: L("currency_subtitle"))
+                    },
+                    optionLabel: { rawValue in
+                        Text(verbatim: PreferredCurrencyOption(rawValue: rawValue)?.label ?? rawValue)
+                    })
+                    .onChange(of: self.settings.preferredCurrencyCode) { _, newValue in
+                        guard CurrencyExchange.requiresLiveRates(preferredCurrencyCode: newValue) else { return }
+                        Task {
+                            await CurrencyExchange.shared.fetchLatestRatesIfNeeded(
+                                preferredCurrencyCode: newValue)
+                        }
+                    }
 
                 SettingsMenuPicker(
                     selection: self.$settings.terminalApp,
@@ -116,10 +179,23 @@ struct GeneralPane: View {
                 SettingsMenuPicker(
                     selection: self.$settings.refreshFrequency,
                     options: GeneralSettingsMenuOptions.refreshFrequencies,
-                    label: { Text(L("refresh_cadence_title")) },
+                    label: { Text(L("refresh_interval_title")) },
                     optionLabel: { option in Text(option.label) })
 
                 Toggle(L("refresh_on_open_title"), isOn: self.$settings.refreshAllProvidersOnMenuOpen)
+
+                SettingsMenuPicker(
+                    selection: self.$settings.backgroundWorkLowPowerModePreference,
+                    options: GeneralSettingsMenuOptions.lowPowerModePreferences,
+                    label: {
+                        SettingsRowLabel(
+                            L("Low Power Mode"),
+                            subtitle: L(
+                                "When on, runs automatic provider, local usage, and storage refreshes no more " +
+                                    "often than every 30 minutes. Manual refresh remains available. Automatic " +
+                                    "follows the system Low Power Mode setting."))
+                    },
+                    optionLabel: { option in Text(option.label) })
 
                 Toggle(isOn: self.$settings.statusChecksEnabled) {
                     SettingsRowLabel(
@@ -127,31 +203,11 @@ struct GeneralPane: View {
                         subtitle: L("check_provider_status_subtitle"))
                 }
             } header: {
-                Text(L("section_automation"))
+                Text(L("section_refreshing"))
             } footer: {
                 if self.settings.refreshFrequency == .manual {
-                    Text(L("manual_refresh_hint"))
+                    SettingsSectionFooter(L("manual_refresh_hint"))
                 }
-            }
-
-            Section {
-                Toggle(isOn: self.$settings.sessionQuotaNotificationsEnabled) {
-                    SettingsRowLabel(
-                        L("session_quota_notifications_title"),
-                        subtitle: L("session_quota_notifications_subtitle"))
-                }
-
-                Toggle(isOn: self.$settings.quotaWarningNotificationsEnabled) {
-                    SettingsRowLabel(
-                        L("quota_warning_notifications_title"),
-                        subtitle: L("quota_warning_notifications_subtitle"))
-                }
-
-                if self.settings.quotaWarningNotificationsEnabled {
-                    GlobalQuotaWarningSettingsView(settings: self.settings)
-                }
-            } header: {
-                Text(L("section_notifications"))
             }
 
             Section {
@@ -160,17 +216,21 @@ struct GeneralPane: View {
                 }
             } header: {
                 Text(L("section_keyboard_shortcut"))
-            }
-
-            Section {
-                HStack {
+            } footer: {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(String(format: L("version_format"), AppVersion.displayString))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                     Spacer()
                     Button(L("quit_app")) { NSApp.terminate(nil) }
+                        .buttonStyle(.borderedProminent)
                 }
+                .padding(.top, 8)
             }
         }
         .formStyle(.grouped)
         .toggleStyle(.switch)
         .scrollContentBackground(.hidden)
+        .background(FocusResigningBackground())
     }
 }

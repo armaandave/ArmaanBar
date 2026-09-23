@@ -95,13 +95,9 @@ git diff --check
 
 Run the repo's required check command from local instructions. For this repo, prefer `make check`; avoid live provider/keychain/browser-cookie probes unless the user explicitly requested them.
 
-If `Scripts/package_app.sh`, `Scripts/compile_and_run.sh`, `Package.swift`, signing metadata, or bundle metadata changed during the sync, verify the fork still packages as ArmaanBar before handoff:
-
-- executable/product: `ArmaanBar`
-- app bundle: `ArmaanBar.app`
-- bundle IDs: `com.armaandave.ArmaanBar` and `com.armaandave.ArmaanBar.debug`
-- app group/signing identifiers use the `com.armaandave.ArmaanBar` identity
-- packaging installs and patches rpaths for `${APP_EXECUTABLE}`, not a hard-coded upstream `CodexBar`
+If package, signing, or bundle metadata changed, verify that the packaged app matches the current
+fork contract. When the contract does not protect product identity, use upstream's product name,
+bundle ID, and signing identifiers.
 
 For packaging validation, prefer `./Scripts/package_app.sh debug` for a non-launching check. Run the user's exact `./Scripts/compile_and_run.sh` command when they are explicitly validating the app bundle.
 

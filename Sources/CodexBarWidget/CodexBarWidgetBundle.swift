@@ -10,6 +10,7 @@ struct CodexBarWidgetBundle: WidgetBundle {
         CodexBarCompactWidget()
         CodexBarBurnDownWidget()
         CodexBarCombinedBurnDownWidget()
+        CodexBarAccountUsageWidget()
     }
 }
 
@@ -80,6 +81,10 @@ struct CodexBarCompactWidget: Widget {
     }
 }
 
+enum BurnDownWidgetBackgroundConfiguration {
+    static let isRemovable = true
+}
+
 struct CodexBarBurnDownWidget: Widget {
     private let kind = "CodexBarBurnDownWidget"
 
@@ -94,6 +99,7 @@ struct CodexBarBurnDownWidget: Widget {
         .configurationDisplayName("CodexBar Burn Down")
         .description("Remaining budget compared with an ideal steady burn rate.")
         .supportedFamilies([.systemMedium])
+        .containerBackgroundRemovable(BurnDownWidgetBackgroundConfiguration.isRemovable)
     }
 }
 
@@ -111,5 +117,6 @@ struct CodexBarCombinedBurnDownWidget: Widget {
         .configurationDisplayName("CodexBar Burn Down (Combined)")
         .description("Session and weekly burn-down charts in one tile.")
         .supportedFamilies([.systemMedium])
+        .containerBackgroundRemovable(BurnDownWidgetBackgroundConfiguration.isRemovable)
     }
 }

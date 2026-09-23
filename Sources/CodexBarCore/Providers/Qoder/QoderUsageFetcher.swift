@@ -45,7 +45,7 @@ public enum QoderWebSite: CaseIterable, Sendable {
 }
 
 public enum QoderUsageFetcher {
-    private static let log = CodexBarLog.logger(LogCategories.qoderUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.qoder, scope: "usage"))
     private static let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
@@ -239,25 +239,13 @@ private struct QoderUsageResponse: Decodable {
         forKey key: CodingKeys) -> Date?
     {
         if let value = try? container.decode(String.self, forKey: key) {
-            return self.parseISO8601Date(value)
+            return ISO8601DateParser.parse(value)
         }
         if let value = try? container.decode(Double.self, forKey: key) {
             let seconds = value > 10_000_000_000 ? value / 1000 : value
             return Date(timeIntervalSince1970: seconds)
         }
         return nil
-    }
-
-    private static func parseISO8601Date(_ value: String) -> Date? {
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: value) {
-            return date
-        }
-
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        return plain.date(from: value)
     }
 }
 

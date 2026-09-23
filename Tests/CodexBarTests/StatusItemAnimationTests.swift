@@ -3,7 +3,6 @@ import CodexBarCore
 import Testing
 @testable import CodexBar
 
-// swiftlint:disable file_length
 @MainActor
 @Suite(.serialized)
 // swiftlint:disable:next type_body_length
@@ -79,7 +78,7 @@ struct StatusItemAnimationTests {
         if let openRouterMeta = registry.metadata[.openrouter] {
             settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
         }
-        settings.openRouterAPIToken = "or-token"
+        settings[providerConfig: .openrouter, field: .apiKey] = "or-token"
         if let geminiMeta = registry.metadata[.gemini] {
             settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: false)
         }
@@ -127,7 +126,7 @@ struct StatusItemAnimationTests {
         if let openRouterMeta = registry.metadata[.openrouter] {
             settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
         }
-        settings.openRouterAPIToken = "or-token"
+        settings[providerConfig: .openrouter, field: .apiKey] = "or-token"
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -298,7 +297,7 @@ struct StatusItemAnimationTests {
         if let openRouterMeta = registry.metadata[.openrouter] {
             settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
         }
-        settings.openRouterAPIToken = "or-token"
+        settings[providerConfig: .openrouter, field: .apiKey] = "or-token"
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -319,7 +318,6 @@ struct StatusItemAnimationTests {
             keyDataFetched: true,
             keyLimit: nil,
             keyUsage: nil,
-            rateLimit: nil,
             updatedAt: Date()).toUsageSnapshot()
 
         store._setSnapshotForTesting(snapshot, provider: .openrouter)
@@ -334,7 +332,7 @@ struct StatusItemAnimationTests {
 
         #expect(image.size.width == 18)
         #expect(image.size.height == 18)
-        #expect(snapshot.openRouterUsage?.keyQuotaStatus == .noLimitConfigured)
+        #expect(snapshot.detailRow(label: "API key limit")?.value == "No limit configured")
         #expect(controller.statusItems[.openrouter]?.button?.title.isEmpty == true)
         #expect(MenuBarDisplayText.percentText(window: snapshot.primary, showUsed: false) == nil)
 
@@ -365,7 +363,7 @@ struct StatusItemAnimationTests {
         if let openRouterMeta = registry.metadata[.openrouter] {
             settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
         }
-        settings.openRouterAPIToken = "or-token"
+        settings[providerConfig: .openrouter, field: .apiKey] = "or-token"
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -386,7 +384,6 @@ struct StatusItemAnimationTests {
             keyDataFetched: false,
             keyLimit: nil,
             keyUsage: nil,
-            rateLimit: nil,
             updatedAt: Date()).toUsageSnapshot()
 
         store._setSnapshotForTesting(snapshot, provider: .openrouter)
@@ -401,7 +398,7 @@ struct StatusItemAnimationTests {
 
         #expect(image.size.width == 18)
         #expect(image.size.height == 18)
-        #expect(snapshot.openRouterUsage?.keyQuotaStatus == .unavailable)
+        #expect(snapshot.detailRow(label: "API key limit")?.value == "Unavailable right now")
 
         // Even with no key data, OpenRouter still renders a meter rather than the brand logo.
         // A brand logo would be fully opaque here; the unfilled track is not.
@@ -974,6 +971,18 @@ struct StatusItemAnimationTests {
         #expect(pace == "+16%")
         #expect(both == "40% @ 14%")
         #expect(bothLeft == "60% @ 86%")
+
+        let justReset = RateWindow(
+            usedPercent: 2,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval((10080 - 120) * 60),
+            resetDescription: nil)
+        let justResetPace = UsagePace.weekly(window: justReset, now: now)
+        #expect(MenuBarDisplayText.displayText(
+            mode: .both,
+            percentWindow: justReset,
+            pace: justResetPace,
+            showUsed: true) == "2% @ 1%")
     }
 
     @Test
@@ -1215,6 +1224,7 @@ struct StatusItemAnimationTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .claude
         settings.menuBarDisplayMode = .both
+        settings.menuBarShowsResetTimeWhenExhausted = false
         settings.usageBarsShowUsed = false
         settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
 
@@ -1255,8 +1265,8 @@ struct StatusItemAnimationTests {
 
         let displayText = controller.menuBarDisplayText(for: .claude, snapshot: snapshot)
 
-        // "0% · ±N%": percent from the session lane (here exhausted), pace from the weekly lane.
-        #expect(displayText?.hasPrefix("0% · ") == true)
+        // Percent comes from the exhausted session lane; period progress comes from the weekly lane.
+        #expect(displayText?.hasPrefix("0% @ ") == true)
     }
 
     @Test
@@ -1313,7 +1323,7 @@ struct StatusItemAnimationTests {
         let displayText = controller.menuBarDisplayText(for: .claude, snapshot: snapshot)
 
         // Usage is the session lane (12% used), not the most-constrained weekly lane (45%).
-        #expect(displayText?.hasPrefix("12% · ") == true)
+        #expect(displayText?.hasPrefix("12% @ ") == true)
         #expect(displayText?.hasPrefix("45%") == false)
     }
 
@@ -1370,14 +1380,13 @@ struct StatusItemAnimationTests {
 
         let displayText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
 
-        #expect(displayText?.hasPrefix("12% · ") == true)
+        #expect(displayText?.hasPrefix("12% @ ") == true)
         #expect(displayText?.hasPrefix("91%") == false)
     }
 
     @Test
     func `claude combined menu bar metric surfaces an exhausted weekly lane in both mode`() {
-        // When the weekly lane is exhausted it is the binding cap and has no pace, so the combined metric
-        // must surface it instead of a roomy session number that would hide the spent weekly limit.
+        // When the weekly lane is exhausted, show its remaining quota and period progress.
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusItemAnimationTests-claude-combined-weekly-exhausted"),
             zaiTokenStore: NoopZaiTokenStore(),
@@ -1387,6 +1396,7 @@ struct StatusItemAnimationTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .claude
         settings.menuBarDisplayMode = .both
+        settings.menuBarShowsResetTimeWhenExhausted = false
         settings.usageBarsShowUsed = false
         settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
 
@@ -1426,7 +1436,7 @@ struct StatusItemAnimationTests {
         let displayText = controller.menuBarDisplayText(for: .claude, snapshot: snapshot)
 
         // Shows the exhausted weekly lane (0% remaining), not the roomy session lane (88%).
-        #expect(displayText == "0%")
+        #expect(displayText == "0% @ 1%")
         #expect(displayText?.hasPrefix("88%") == false)
     }
 
@@ -1583,57 +1593,6 @@ struct StatusItemAnimationTests {
         let displayText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
 
         #expect(displayText == "20%")
-    }
-
-    @Test
-    func `codex both menu bar keeps period percent immediately after weekly reset`() {
-        let settings = SettingsStore(
-            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-codex-both-after-reset"),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        settings.statusChecksEnabled = false
-        settings.refreshFrequency = .manual
-        settings.mergeIcons = true
-        settings.selectedMenuProvider = .codex
-        settings.menuBarDisplayMode = .both
-        settings.usageBarsShowUsed = true
-        settings.setMenuBarMetricPreference(.secondary, for: .codex)
-
-        let registry = ProviderRegistry.shared
-        if let codexMeta = registry.metadata[.codex] {
-            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
-        }
-
-        let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
-        let controller = StatusItemController(
-            store: store,
-            settings: settings,
-            account: fetcher.loadAccountInfo(),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: self.makeStatusBarForTesting())
-        defer { controller.releaseStatusItemsForTesting() }
-
-        let now = Date()
-        let snapshot = UsageSnapshot(
-            primary: RateWindow(
-                usedPercent: 12,
-                windowMinutes: 300,
-                resetsAt: now.addingTimeInterval(3 * 60 * 60),
-                resetDescription: nil),
-            secondary: RateWindow(
-                usedPercent: 2,
-                windowMinutes: 10080,
-                resetsAt: now.addingTimeInterval((10080 - 120) * 60),
-                resetDescription: nil),
-            updatedAt: now)
-        store._setSnapshotForTesting(snapshot, provider: .codex)
-        store._setErrorForTesting(nil, provider: .codex)
-
-        let displayText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
-
-        #expect(displayText == "2% @ 1%")
     }
 
     @Test

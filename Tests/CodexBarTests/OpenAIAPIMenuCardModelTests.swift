@@ -42,7 +42,6 @@ struct OpenAIAPIMenuCardModelTests {
             snapshot: apiUsage.toUsageSnapshot(),
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -52,7 +51,7 @@ struct OpenAIAPIMenuCardModelTests {
             usageBarsShowUsed: false,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
-            tokenCostInlineDashboardEnabled: true,
+            costSummaryInlineEnabled: true,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
             now: now))
@@ -60,8 +59,8 @@ struct OpenAIAPIMenuCardModelTests {
         #expect(model.metrics.isEmpty)
         #expect(model.openAIAPIUsage != nil)
         #expect(model.inlineUsageDashboard?.kpis.first?.value == "$0.00")
-        let requestsKPI = try #require(model.inlineUsageDashboard?.kpis.first { $0.title == "Requests" })
-        #expect(requestsKPI.value == "40")
+        #expect(model.inlineUsageDashboard?.kpis.last?.title == "Requests")
+        #expect(model.inlineUsageDashboard?.kpis.last?.value == "40")
         #expect(model.inlineUsageDashboard?.points.count == 1)
         #expect(model.inlineUsageDashboard?.detailLines.contains("30d requests: 40 requests") == true)
         #expect(model.providerCost == nil)
@@ -101,7 +100,6 @@ struct OpenAIAPIMenuCardModelTests {
                 updatedAt: now),
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: staleTokenSnapshot,
             tokenError: nil,
@@ -147,7 +145,6 @@ struct OpenAIAPIMenuCardModelTests {
             snapshot: apiUsage.toUsageSnapshot(),
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: apiUsage.toCostUsageTokenSnapshot(),
             tokenError: nil,

@@ -70,7 +70,7 @@ struct SakanaUsageFetcherTests {
         #expect(payAsYouGoRequest?.cookie == "session=abc")
 
         let usage = snapshot.toUsageSnapshot()
-        #expect(usage.sakanaPayAsYouGo?.balanceDetail == "$12.34")
+        #expect(usage.detailRow(label: "Balance")?.value == "$12.34")
     }
 
     @Test
@@ -172,10 +172,7 @@ struct SakanaUsageFetcherTests {
         #expect(snapshot.fiveHour?.usedPercent == 92)
         #expect(snapshot.payAsYouGo == nil)
         #expect(startedAt.duration(to: .now) < .milliseconds(500))
-        for _ in 0..<1000 where await !(transport.didCancelPayAsYouGo()) {
-            await Task.yield()
-        }
-        #expect(await transport.didCancelPayAsYouGo())
+        #expect(try await transport.waitForPayAsYouGoCancellation())
     }
 
     @Test
@@ -192,10 +189,7 @@ struct SakanaUsageFetcherTests {
                 session: transport)
         }
 
-        for _ in 0..<1000 where await !(transport.didCancelPayAsYouGo()) {
-            await Task.yield()
-        }
-        #expect(await transport.didCancelPayAsYouGo())
+        #expect(try await transport.waitForPayAsYouGoCancellation())
     }
 
     @Test
@@ -358,8 +352,7 @@ struct SakanaUsageFetcherTests {
 
         let usage = snapshot.toUsageSnapshot()
 
-        #expect(usage.sakanaPayAsYouGo?.creditBalance == 9)
-        #expect(usage.sakanaPayAsYouGo?.balanceDetail == "$9.00")
+        #expect(usage.detailRow(label: "Balance")?.value == "$9.00")
     }
 
     private static func date(year: Int, month: Int, day: Int, hour: Int, minute: Int) -> Date? {
@@ -458,8 +451,13 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
         self.capturedRequests
     }
 
-    func didCancelPayAsYouGo() -> Bool {
-        self.payAsYouGoWasCancelled
+    func waitForPayAsYouGoCancellation() async throws -> Bool {
+        // Stay below the optional request's five-second fallback timeout.
+        let deadline = ContinuousClock.now.advanced(by: .seconds(1))
+        while !self.payAsYouGoWasCancelled, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        return self.payAsYouGoWasCancelled
     }
 
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {

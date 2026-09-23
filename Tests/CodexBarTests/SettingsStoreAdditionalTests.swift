@@ -6,6 +6,36 @@ import Testing
 @MainActor
 struct SettingsStoreAdditionalTests {
     @Test
+    func `typed provider config bindings normalize every standard field`() {
+        let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-provider-config-bindings")
+
+        let fields: [(ProviderConfigStringField, String)] = [
+            (.apiKey, "api"),
+            (.secretKey, "secret"),
+            (.region, "region"),
+            (.endpoint, "https://example.test"),
+            (.workspace, "workspace"),
+            (.cookieHeader, "session=fixture"),
+        ]
+        for (field, value) in fields {
+            settings[providerConfig: .groq, field: field] = "  \(value)  "
+            #expect(settings[providerConfig: .groq, field: field] == value)
+        }
+
+        let binding = settings.providerConfigBinding(provider: .openai, field: .secretWorkspace(logField: "projectID"))
+        binding.wrappedValue = "  project  "
+        #expect(binding.wrappedValue == "project")
+
+        let cookieSource = settings.providerCookieSourceBinding(provider: .groq, fallback: .auto)
+        #expect(cookieSource.wrappedValue == .auto)
+        cookieSource.wrappedValue = .manual
+        #expect(cookieSource.wrappedValue == .manual)
+
+        settings[providerConfig: .groq, field: .apiKey] = "   "
+        #expect(settings.providerConfig(for: .groq)?.apiKey == nil)
+    }
+
+    @Test
     @MainActor
     func `antigravity two pool migration preserves released metric meaning`() {
         let primaryDefaults = UserDefaults(suiteName: #function + ".primary")!
@@ -67,7 +97,7 @@ struct SettingsStoreAdditionalTests {
         #expect(settings.menuBarMetricPreference(for: .zai) == .secondary)
 
         settings.setMenuBarMetricPreference(.tertiary, for: .zai)
-        #expect(settings.menuBarMetricPreference(for: .zai) == .tertiary)
+        #expect(settings.menuBarMetricPreference(for: .zai) == .automatic)
         #expect(settings.menuBarMetricPreference(for: .zai, snapshot: nil) == .automatic)
         #expect(settings.menuBarMetricSupportsTertiary(for: .zai, snapshot: nil) == false)
 
@@ -140,11 +170,14 @@ struct SettingsStoreAdditionalTests {
     }
 
     @Test
-    func `menu bar metric preference restricts mistral to payg or monthly plan`() {
+    func `menu bar metric preference restricts mistral to payg, monthly plan, or primary`() {
         let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-mistral-metric")
 
         settings.setMenuBarMetricPreference(.monthlyPlan, for: .mistral)
         #expect(settings.menuBarMetricPreference(for: .mistral) == .monthlyPlan)
+
+        settings.setMenuBarMetricPreference(.primary, for: .mistral)
+        #expect(settings.menuBarMetricPreference(for: .mistral) == .primary)
 
         settings.setMenuBarMetricPreference(.secondary, for: .mistral)
         #expect(settings.menuBarMetricPreference(for: .mistral) == .automatic)
@@ -154,12 +187,49 @@ struct SettingsStoreAdditionalTests {
     func `menu bar metric preference restricts text only balance providers to automatic`() {
         let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-text-only-metric")
 
-        for provider in [UsageProvider.deepseek, .kimik2, .poe, .crossmodel] {
+        for provider in [UsageProvider.deepseek, .poe] {
             settings.setMenuBarMetricPreference(.primary, for: provider)
             #expect(settings.menuBarMetricPreference(for: provider) == .automatic)
 
             settings.setMenuBarMetricPreference(.secondary, for: provider)
             #expect(settings.menuBarMetricPreference(for: provider) == .automatic)
+        }
+    }
+
+    @Test
+    func `menu bar metric capability membership preserves every provider verdict`() {
+        let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-menu-metric-capabilities")
+        let standard: Set<MenuBarMetricPreference> = [.automatic, .primary, .secondary]
+        let overrides: [UsageProvider: Set<MenuBarMetricPreference>] = [
+            .codex: standard.union([.primaryAndSecondary, .extraUsage]),
+            .claude: standard.union([.primaryAndSecondary, .extraUsage]),
+            .cursor: standard.union([.tertiary, .extraUsage]),
+            .gemini: standard.union([.average]),
+            .perplexity: standard.union([.tertiary]),
+            .opencodego: standard.union([.tertiary]),
+            .mistral: [.automatic, .primary, .monthlyPlan],
+            .openrouter: [.automatic, .primary],
+            .nous: [.automatic, .primary],
+            .coderabbit: [.automatic],
+            .replicate: [.automatic],
+            .typesafe: [.automatic],
+            .hyper: [.automatic],
+            .huggingface: [.automatic, .secondary],
+            .deepseek: [.automatic],
+            .deepinfra: [.automatic],
+            .moonshot: [.automatic],
+            .poe: [.automatic],
+        ]
+
+        for provider in UsageProvider.allCases {
+            let supported = overrides[provider] ?? standard
+            for preference in MenuBarMetricPreference.allCases {
+                settings.setMenuBarMetricPreference(preference, for: provider)
+                let expected = supported.contains(preference) ? preference : .automatic
+                #expect(
+                    settings.menuBarMetricPreference(for: provider) == expected,
+                    "Unexpected \(preference.rawValue) verdict for \(provider.rawValue).")
+            }
         }
     }
 
@@ -228,7 +298,6 @@ struct SettingsStoreAdditionalTests {
             minimaxCookieStore: InMemoryMiniMaxCookieStore(),
             minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
             kimiTokenStore: InMemoryKimiTokenStore(),
-            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),

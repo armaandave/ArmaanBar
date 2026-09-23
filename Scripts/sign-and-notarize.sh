@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_NAME="CodexBar"
-APP_IDENTITY="Developer ID Application: Peter Steinberger (Y5PE65HELJ)"
+APP_IDENTITY="${APP_IDENTITY:-Developer ID Application: Peter Steinberger (Y5PE65HELJ)}"
 APP_BUNDLE="CodexBar.app"
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 source "$ROOT/version.env"
@@ -10,10 +10,29 @@ source "$ROOT/Scripts/release_artifacts.sh"
 source "$ROOT/Scripts/package_product_paths.sh"
 source "$ROOT/Scripts/release_dsym_paths.sh"
 
+verify_distribution_policy() {
+  local app=$1
+  if command -v syspolicy_check >/dev/null 2>&1; then
+    syspolicy_check distribution "$app"
+  else
+    spctl -a -t exec -vv "$app"
+  fi
+}
+
 # Allow building a universal binary if ARCHES is provided; default to universal (arm64 + x86_64).
 ARCHES_VALUE=${ARCHES:-"arm64 x86_64"}
 ZIP_NAME=$(codexbar_app_zip_name "$MARKETING_VERSION" "$ARCHES_VALUE")
 DSYM_ZIP=$(codexbar_dsym_zip_name "$MARKETING_VERSION" "$ARCHES_VALUE")
+
+NOTARYTOOL_OPTIONS=(--wait)
+case "${CODEXBAR_NOTARY_S3_ACCELERATION-1}" in
+  0) NOTARYTOOL_OPTIONS+=(--no-s3-acceleration) ;;
+  1) ;;
+  *)
+    echo "CODEXBAR_NOTARY_S3_ACCELERATION must be 0 or 1." >&2
+    exit 1
+    ;;
+esac
 
 if [[ -z "${APP_STORE_CONNECT_API_KEY_P8:-}" || -z "${APP_STORE_CONNECT_KEY_ID:-}" || -z "${APP_STORE_CONNECT_ISSUER_ID:-}" ]]; then
   echo "Missing APP_STORE_CONNECT_* env vars (API key, key id, issuer id)." >&2
@@ -33,7 +52,7 @@ trap 'rm -rf "$NOTARIZATION_TEMP_DIR"' EXIT
 chmod 600 "$API_KEY_PATH"
 
 ARCH_LIST=( ${ARCHES_VALUE} )
-ARCHES="${ARCHES_VALUE}" CODEXBAR_SIGNING=identity ./Scripts/package_app.sh release
+APP_IDENTITY="$APP_IDENTITY" ARCHES="${ARCHES_VALUE}" CODEXBAR_SIGNING=identity ./Scripts/package_app.sh release
 
 ENTITLEMENTS_DIR="$ROOT/.build/entitlements"
 APP_ENTITLEMENTS="${ENTITLEMENTS_DIR}/CodexBar.entitlements"
@@ -68,7 +87,7 @@ xcrun notarytool submit "$NOTARIZATION_ZIP" \
   --key "$API_KEY_PATH" \
   --key-id "$APP_STORE_CONNECT_KEY_ID" \
   --issuer "$APP_STORE_CONNECT_ISSUER_ID" \
-  --wait
+  "${NOTARYTOOL_OPTIONS[@]}"
 
 echo "Stapling ticket"
 xcrun stapler staple "$APP_BUNDLE"
@@ -79,7 +98,7 @@ find "$APP_BUNDLE" -name '._*' -delete
 
 "$DITTO_BIN" --norsrc -c -k --keepParent "$APP_BUNDLE" "$ZIP_NAME"
 
-spctl -a -t exec -vv "$APP_BUNDLE"
+verify_distribution_policy "$APP_BUNDLE"
 stapler validate "$APP_BUNDLE"
 
 echo "Packaging dSYM"
